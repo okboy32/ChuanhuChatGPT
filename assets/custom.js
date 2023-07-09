@@ -114,6 +114,9 @@ function gradioLoaded(mutations) {
                     updateLatestVersion();
                 }
             }
+            if (sendBtn) {
+                submitObserver.observe(sendBtn, { attributes: true, characterData: true});
+            }
         }
     }
 }
@@ -453,7 +456,7 @@ function removeMarkdownText(message) {
 let timeoutId;
 let isThrottled = false;
 var mmutation
-// 监听所有gradio元素的变化，为 bot 消息添加复制按钮。
+// 监听chatWrap元素的变化，为 bot 消息添加复制按钮。
 var mObserver = new MutationObserver(function (mutationsList) {
     for (mmutation of mutationsList) {
         if (mmutation.type === 'childList') {
@@ -471,7 +474,7 @@ var mObserver = new MutationObserver(function (mutationsList) {
                     document.querySelectorAll('#chuanhu_chatbot .message-wrap .message.bot').forEach(addChuanhuButton);
                 }
             }
-        } else if (mmutation.type === 'attributes' || mmutation.type === 'characterData') {
+        } else if (mmutation.type === 'attributes') {
             if (isThrottled) break; // 为了防止重复不断疯狂渲染，加上等待_(:з」∠)_
             isThrottled = true;
             clearTimeout(timeoutId);
@@ -485,6 +488,11 @@ var mObserver = new MutationObserver(function (mutationsList) {
     }
 });
 // mObserver.observe(targetNode, { attributes: true, childList: true, subtree: true, characterData: true});
+
+var submitObserver = new MutationObserver(function (mutationsList) {
+    document.querySelectorAll('#chuanhu_chatbot .message-wrap .message.bot').forEach(addChuanhuButton);
+    saveHistoryHtml();
+});
 
 var loadhistorytime = 0; // for debugging
 function saveHistoryHtml() {
