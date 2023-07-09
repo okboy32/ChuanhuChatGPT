@@ -20,6 +20,7 @@ var loginUserForm = null;
 var logginUser = null;
 var updateToast = null;
 var sendBtn = null;
+var sliders = null;
 
 var userLogged = false;
 var usernameGotten = false;
@@ -70,10 +71,11 @@ function gradioLoaded(mutations) {
             userInfoDiv = document.getElementById("user_info");
             appTitleDiv = document.getElementById("app_title");
             chatbot = document.querySelector('#chuanhu_chatbot');
-            chatbotWrap = document.querySelector('#chuanhu_chatbot > .wrap');
+            chatbotWrap = document.querySelector('#chuanhu_chatbot > .wrapper > .wrap');
             apSwitch = document.querySelector('.apSwitch input[type="checkbox"]');
             updateToast = document.querySelector("#toast-update");
             sendBtn = document.getElementById("submit_btn");
+            sliders = document.querySelectorAll('input[type="range"]');
 
             if (loginUserForm) {
                 localStorage.setItem("userLogged", true);
@@ -100,6 +102,10 @@ function gradioLoaded(mutations) {
                     loadHistoryHtml();
                 }
                 setChatbotScroll();
+                mObserver.observe(chatbotWrap, { attributes: true, childList: true, subtree: true, characterData: true});
+            }
+            if (sliders) {
+                setSlider();
             }
             if (updateToast) {
                 const lastCheckTime = localStorage.getItem('lastCheckTime') || 0;
@@ -107,6 +113,9 @@ function gradioLoaded(mutations) {
                 if (longTimeNoCheck && !updateInfoGotten && !isLatestVersion || isLatestVersion && !updateInfoGotten) {
                     updateLatestVersion();
                 }
+            }
+            if (sendBtn) {
+                submitObserver.observe(sendBtn, { attributes: true, characterData: true});
             }
         }
     }
@@ -117,7 +126,7 @@ function webLocale() {
     if (forView_i18n.hasOwnProperty(language)) {
         var forView = forView_i18n[language];
         var forViewStyle = document.createElement('style');
-        forViewStyle.innerHTML = '.wrap>.history-message>:last-child::after { content: "' + forView + '"!important; }';
+        forViewStyle.innerHTML = '.wrapper>.wrap>.history-message>:last-child::after { content: "' + forView + '"!important; }';
         document.head.appendChild(forViewStyle);
     }
     if (deleteConfirm_i18n_pref.hasOwnProperty(language)) {
@@ -313,22 +322,21 @@ function setChatbotHeight() {
     const screenWidth = window.innerWidth;
     const statusDisplay = document.querySelector('#status_display');
     const statusDisplayHeight = statusDisplay ? statusDisplay.offsetHeight : 0;
-    const wrap = chatbot.querySelector('.wrap');
     const vh = window.innerHeight * 0.01;
     document.documentElement.style.setProperty('--vh', `${vh}px`);
     if (isInIframe) {
         chatbot.style.height = `700px`;
-        wrap.style.maxHeight = `calc(700px - var(--line-sm) * 1rem - 2 * var(--block-label-margin))`
+        chatbotWrap.style.maxHeight = `calc(700px - var(--line-sm) * 1rem - 2 * var(--block-label-margin))`
     } else {
         if (screenWidth <= 320) {
             chatbot.style.height = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 150}px)`;
-            wrap.style.maxHeight = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 150}px - var(--line-sm) * 1rem - 2 * var(--block-label-margin))`;
+            chatbotWrap.style.maxHeight = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 150}px - var(--line-sm) * 1rem - 2 * var(--block-label-margin))`;
         } else if (screenWidth <= 499) {
             chatbot.style.height = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 100}px)`;
-            wrap.style.maxHeight = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 100}px - var(--line-sm) * 1rem - 2 * var(--block-label-margin))`;
+            chatbotWrap.style.maxHeight = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 100}px - var(--line-sm) * 1rem - 2 * var(--block-label-margin))`;
         } else {
             chatbot.style.height = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 160}px)`;
-            wrap.style.maxHeight = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 160}px - var(--line-sm) * 1rem - 2 * var(--block-label-margin))`;
+            chatbotWrap.style.maxHeight = `calc(var(--vh, 1vh) * 100 - ${statusDisplayHeight + 160}px - var(--line-sm) * 1rem - 2 * var(--block-label-margin))`;
         }
     }
 }
@@ -368,12 +376,12 @@ function addChuanhuButton(botElement) {
         }
         return;
     }
-    var copyButton = null;
-    var toggleButton = null;
-    copyButton = botElement.querySelector('button.copy-bot-btn');
-    toggleButton = botElement.querySelector('button.toggle-md-btn');
-    if (copyButton) copyButton.remove();
-    if (toggleButton) toggleButton.remove();
+    var oldCopyButton = null;
+    var oldToggleButton = null;
+    oldCopyButton = botElement.querySelector('button.copy-bot-btn');
+    oldToggleButton = botElement.querySelector('button.toggle-md-btn');
+    if (oldCopyButton) oldCopyButton.remove();
+    if (oldToggleButton) oldToggleButton.remove();
 
     // Copy bot button
     var copyButton = document.createElement('button');
@@ -383,7 +391,6 @@ function addChuanhuButton(botElement) {
     copyButton.innerHTML = copyIcon;
     copyButton.addEventListener('click', async () => {
         const textToCopy = rawMessage.innerText;
-
         try {
             if ("clipboard" in navigator) {
                 await navigator.clipboard.writeText(textToCopy);
@@ -394,10 +401,8 @@ function addChuanhuButton(botElement) {
             } else {
                 const textArea = document.createElement("textarea");
                 textArea.value = textToCopy;
-
                 document.body.appendChild(textArea);
                 textArea.select();
-
                 try {
                     document.execCommand('copy');
                     copyButton.innerHTML = copiedIcon;
@@ -407,7 +412,6 @@ function addChuanhuButton(botElement) {
                 } catch (error) {
                     console.error("Copy failed: ", error);
                 }
-
                 document.body.removeChild(textArea);
             }
         } catch (error) {
@@ -452,47 +456,48 @@ function removeMarkdownText(message) {
 let timeoutId;
 let isThrottled = false;
 var mmutation
-// 监听所有元素中 bot message 的变化，为 bot 消息添加复制按钮。
+// 监听chatWrap元素的变化，为 bot 消息添加复制按钮。
 var mObserver = new MutationObserver(function (mutationsList) {
     for (mmutation of mutationsList) {
         if (mmutation.type === 'childList') {
             for (var node of mmutation.addedNodes) {
-                if (node.nodeType === 1 && node.classList.contains('message') && node.getAttribute('data-testid') === 'bot') {
+                if (node.nodeType === 1 && node.classList.contains('message')) {
                     saveHistoryHtml();
                     disableSendBtn();
-                    document.querySelectorAll('#chuanhu_chatbot>.wrap>.message-wrap .message.bot').forEach(addChuanhuButton);
-                }
-                if (node.tagName === 'INPUT' && node.getAttribute('type') === 'range') {
-                    setSlider();
+                    document.querySelectorAll('#chuanhu_chatbot .message-wrap .message.bot').forEach(addChuanhuButton);
                 }
             }
             for (var node of mmutation.removedNodes) {
-                if (node.nodeType === 1 && node.classList.contains('message') && node.getAttribute('data-testid') === 'bot') {
+                if (node.nodeType === 1 && node.classList.contains('message')) {
                     saveHistoryHtml();
                     disableSendBtn();
-                    document.querySelectorAll('#chuanhu_chatbot>.wrap>.message-wrap .message.bot').forEach(addChuanhuButton);
+                    document.querySelectorAll('#chuanhu_chatbot .message-wrap .message.bot').forEach(addChuanhuButton);
                 }
             }
         } else if (mmutation.type === 'attributes') {
-            if (mmutation.target.nodeType === 1 && mmutation.target.classList.contains('message') && mmutation.target.getAttribute('data-testid') === 'bot') {
-                if (isThrottled) break; // 为了防止重复不断疯狂渲染，加上等待_(:з」∠)_
-                isThrottled = true;
-                clearTimeout(timeoutId);
-                timeoutId = setTimeout(() => {
-                    isThrottled = false;
-                    document.querySelectorAll('#chuanhu_chatbot>.wrap>.message-wrap .message.bot').forEach(addChuanhuButton);
-                    saveHistoryHtml();
-                    disableSendBtn();
-                }, 500);
-            }
+            if (isThrottled) break; // 为了防止重复不断疯狂渲染，加上等待_(:з」∠)_
+            isThrottled = true;
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                isThrottled = false;
+                document.querySelectorAll('#chuanhu_chatbot .message-wrap .message.bot').forEach(addChuanhuButton);
+                saveHistoryHtml();
+                disableSendBtn();
+            }, 1500);
         }
     }
 });
-mObserver.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+// mObserver.observe(targetNode, { attributes: true, childList: true, subtree: true, characterData: true});
+
+var submitObserver = new MutationObserver(function (mutationsList) {
+    document.querySelectorAll('#chuanhu_chatbot .message-wrap .message.bot').forEach(addChuanhuButton);
+    saveHistoryHtml();
+});
 
 var loadhistorytime = 0; // for debugging
 function saveHistoryHtml() {
-    var historyHtml = document.querySelector('#chuanhu_chatbot > .wrap');
+    var historyHtml = document.querySelector('#chuanhu_chatbot>.wrapper>.wrap');
+    if (!historyHtml) return;   // no history, do nothing
     localStorage.setItem('chatHistory', historyHtml.innerHTML);
     // console.log("History Saved")
     historyLoaded = false;
@@ -649,6 +654,40 @@ window.addEventListener("DOMContentLoaded", function () {
 window.addEventListener('resize', setChatbotHeight);
 window.addEventListener('scroll', function(){setChatbotHeight();setUpdateWindowHeight();});
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", adjustDarkMode);
+
+// console suprise
+var styleTitle1 = `
+font-size: 16px;
+font-family: ui-monospace,monospace;
+color: rgb(244,167,89);
+`
+var styleDesc1 = `
+font-size: 12px;
+font-family: ui-monospace,monospace;
+`
+function makeML(str) {
+    let l = new String(str)
+    l = l.substring(l.indexOf("/*") + 3, l.lastIndexOf("*/"))
+    return l
+}
+let ChuanhuInfo = function () {
+    /* 
+   ________                      __             ________          __ 
+  / ____/ /_  __  ______ _____  / /_  __  __   / ____/ /_  ____ _/ /_
+ / /   / __ \/ / / / __ `/ __ \/ __ \/ / / /  / /   / __ \/ __ `/ __/
+/ /___/ / / / /_/ / /_/ / / / / / / / /_/ /  / /___/ / / / /_/ / /_  
+\____/_/ /_/\__,_/\__,_/_/ /_/_/ /_/\__,_/   \____/_/ /_/\__,_/\__/  
+                                                                     
+   川虎Chat (Chuanhu Chat) - GUI for ChatGPT API and many LLMs
+ */
+}
+let description = `
+© 2023 Chuanhu, MZhao, Keldos
+GitHub repository: [https://github.com/GaiZhenbiao/ChuanhuChatGPT]\n
+Enjoy our project!\n
+`
+console.log(`%c${makeML(ChuanhuInfo)}`,styleTitle1)
+console.log(`%c${description}`, styleDesc1)
 
 // button svg code
 const copyIcon   = '<span><svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height=".8em" width=".8em" xmlns="http://www.w3.org/2000/svg"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>';
